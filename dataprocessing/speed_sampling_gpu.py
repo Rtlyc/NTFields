@@ -7,7 +7,7 @@ import math
 import torch
 import pytorch_kinematics as pk
 
-import bvh_distance_queries
+# import bvh_distance_queries
 import math
 
 def arm_rand_sample_bound_points(numsamples, dim, 
@@ -214,9 +214,9 @@ def point_rand_sample_bound_points(numsamples, dim,
     vertices = torch.tensor(vertices, dtype=torch.float32, device='cuda')
     faces = torch.tensor(faces, dtype=torch.long, device='cuda')
     triangles = vertices[faces].unsqueeze(dim=0)
-    print(vertices.shape)
-    print(faces.shape)
-    print(triangles.shape)
+    print("vertices",vertices.shape)
+    print("faces", faces.shape)
+    print("traingles", triangles.shape)
     #X  = torch.zeros((numsamples,2*dim)).cuda()
     #Y  = torch.zeros((numsamples,2)).cuda()
     X_list = []
@@ -242,12 +242,33 @@ def point_rand_sample_bound_points(numsamples, dim,
         query_points = x0
         query_points = query_points.unsqueeze(dim=0)
         #print(query_points.shape)
-        bvh = bvh_distance_queries.BVH()
-        torch.cuda.synchronize()
-        torch.cuda.synchronize()
-        distances, closest_points, closest_faces, closest_bcs= bvh(triangles, query_points)
-        torch.cuda.synchronize()
-        unsigned_distance = torch.sqrt(distances).squeeze()
+        print("tri:",triangles.shape)
+        print("query:",query_points.shape)
+        # bvh = bvh_distance_queries.BVH()
+
+        # * torch.cuda.synchronize()
+        # torch.cuda.synchronize()
+        # distances, closest_points, closest_faces, closest_bcs= bvh(triangles, query_points)
+        # torch.cuda.synchronize()
+        # * unsigned_distance = torch.sqrt(distances).squeeze()
+
+        # Assuming your tensors are called triangles and query_points
+        triangles_np = triangles.cpu().numpy().squeeze(0)
+        query_points_np = query_points.cpu().numpy().squeeze(0)
+
+                # Flatten and get unique vertices
+        vertices, inverse_indices = np.unique(triangles_np.reshape(-1, 3), axis=0, return_inverse=True)
+
+        # Convert back the inverse indices to get faces
+        faces = inverse_indices.reshape(-1, 3)
+
+
+        # Compute the squared distance (Note: to get the actual distance, take the sqrt of the results)
+        squared_d, closest_faces, closest_points = igl.point_mesh_squared_distance(query_points_np, vertices, faces)
+
+        # distances would be the sqrt of squared_d
+        unsigned_distance = torch.from_numpy(np.sqrt(squared_d)).squeeze()
+
         
         where_d          = (unsigned_distance <=  margin) & \
                                 (unsigned_distance >=  offset)
@@ -258,15 +279,35 @@ def point_rand_sample_bound_points(numsamples, dim,
         if(x1.shape[0]<=1):
             continue
 
+        print("yessssssssss")
+
         query_points = x1
         query_points = query_points.unsqueeze(dim=0)
-        bvh = bvh_distance_queries.BVH()
-        torch.cuda.synchronize()
-        torch.cuda.synchronize()
-        distances, closest_points, closest_faces, closest_bcs= bvh(triangles, query_points)
-        torch.cuda.synchronize()
-        #unsigned_distance = abs()
-        y1 = torch.sqrt(distances).squeeze()
+        #* bvh = bvh_distance_queries.BVH()
+        # torch.cuda.synchronize()
+        # torch.cuda.synchronize()
+        # distances, closest_points, closest_faces, closest_bcs= bvh(triangles, query_points)
+        # torch.cuda.synchronize()
+        # #unsigned_distance = abs()
+        #* y1 = torch.sqrt(distances).squeeze()
+
+        # Assuming your tensors are called triangles and query_points
+        triangles_np = triangles.cpu().numpy().squeeze(0)
+        query_points_np = query_points.cpu().numpy().squeeze(0)
+
+                # Flatten and get unique vertices
+        vertices, inverse_indices = np.unique(triangles_np.reshape(-1, 3), axis=0, return_inverse=True)
+
+        # Convert back the inverse indices to get faces
+        faces = inverse_indices.reshape(-1, 3)
+
+
+        # Compute the squared distance (Note: to get the actual distance, take the sqrt of the results)
+        squared_d, closest_faces, closest_points = igl.point_mesh_squared_distance(query_points_np, vertices, faces)
+
+        # distances would be the sqrt of squared_d
+        y1 = torch.from_numpy(np.sqrt(squared_d)).squeeze()
+
 
         x = torch.cat((x0,x1),1)
         y = torch.cat((y0.unsqueeze(1),y1.unsqueeze(1)),1)
